@@ -91,8 +91,18 @@ var Bridge = {
     var origin = p.get('bridgeOrigin'), nonce = p.get('nonce'), portal = p.get('portal');
     if (!/^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/.test(origin || '')) return null;
     if (!/^[a-f0-9]{64}$/.test(nonce || '')) return null;
-    if (!/^https:\/\/script\.google\.com\/(a\/macros\/[a-z0-9.-]+|macros)\/s\/[A-Za-z0-9_-]+\/(exec|dev)$/.test(portal || '')) return null;
+    if (!/^https:\/\/script\.google\.com\/[A-Za-z0-9._\/-]+\/(exec|dev)$/.test(portal || '')) return null;
     return { origin: origin, nonce: nonce, portal: portal };
+  },
+  /** つながらないときの理由（先生が原因を伝えられるように。合言葉そのものは表示しない）。 */
+  diagnose: function (hash, hasOpener) {
+    var p = new URLSearchParams(String(hash || '').replace(/^#/, ''));
+    if (!p.get('bridgeOrigin') && !p.get('nonce')) return 'A：入口からの情報がありません（URLを直接開いた可能性）';
+    if (!/^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/.test(p.get('bridgeOrigin') || '')) return 'B：入口の住所の形が想定と違います（' + String(p.get('bridgeOrigin') || 'なし').slice(0, 80) + '）';
+    if (!/^[a-f0-9]{64}$/.test(p.get('nonce') || '')) return 'C：合言葉の形が想定と違います';
+    if (!/^https:\/\/script\.google\.com\/[A-Za-z0-9._\/-]+\/(exec|dev)$/.test(p.get('portal') || '')) return 'D：入口のURLの形が想定と違います（' + String(p.get('portal') || 'なし').slice(0, 120) + '）';
+    if (!hasOpener) return 'E：開いた元の入口のタブが見つかりません（ブラウザがつながりを切った可能性）';
+    return '';
   },
   acceptHello: function (conn, awaitingWin, ev, topOf) {
     if (!conn || !awaitingWin || !ev || !ev.data || ev.data.type !== 'koepoke:hello') return false;
@@ -177,7 +187,7 @@ var Logic = {
     } catch (e) { $('folderLine').textContent = '保存先を確認できません：' + e.message; }
   }
 
-  if (!conn) showConn('ng', '入口から開かれていません。入口の「録音画面をひらく」から開いてください。', false);
+  if (!conn) { const why = Bridge.diagnose(location.hash, !!window.opener); showConn('ng', '入口から開かれていません。入口の「録音画面をひらく」から開いてください。〔理由 ' + why + '〕', false); log('つながらない理由：' + why + '／端末：' + device); }
   else { showConn('ok', '入口とつながっています。', false); $('start').disabled = false; log('入口の住所：' + conn.origin + '／端末：' + device); loadConfig(); }
 
   setInterval(() => {
